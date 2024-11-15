@@ -1,5 +1,6 @@
 # Cargar todas las librerías
 import pandas as pd 
+import math
 
 # Carga los archivos de datos en diferentes DataFrames
 df_calls = pd.read_csv('D:/TRIPLETEN DISCO 2/datasets/megaline_calls.csv')
@@ -46,6 +47,8 @@ df_users['churn_date'] = pd.to_datetime(df_users['churn_date'])
 # [Corrige los problemas obvios con los datos basándote en las observaciones iniciales.]
 
 df_calls['call_date'] = pd.to_datetime(df_calls['call_date'])
+df_calls['duration_round'] = df_calls['duration'].apply(math.ceil)
+
 
 
 
@@ -75,6 +78,8 @@ df_internet['session_date'] = pd.to_datetime(df_internet['session_date'])
 
 
 
+
+
 # Agregar datos por usuario
 # [Ahora que los datos están limpios, agrega los datos por usuario y por periodo para que solo haya un registro por usuario y por periodo. 
 # Esto facilitará mucho el análisis posterior.]
@@ -82,40 +87,63 @@ df_internet['session_date'] = pd.to_datetime(df_internet['session_date'])
 
 #--------------------------------------------------------------------------------------------------------------------------
 # Calcula el número de llamadas hechas por cada usuario al mes. Guarda el resultado.
-hejemplo = df_calls.groupby(pd.Grouper(key='call_date', freq='M'))['duration'].sum()
-agg = {'duration': 'sum', 'user_id': ''}
+#hejemplo = df_calls.groupby(pd.Grouper(key='call_date', freq='M'))['duration'].sum()
+#agg = {'duration': 'sum', 'user_id': ''}
 
-hejemplo2 = df_calls.groupby('user_id')['duration'].sum()
+#hejemplo2 = df_calls.groupby('user_id')['duration'].sum()
 
-hejemplo3 = df_calls.pivot_table(index = 'user_id', columns = 'call_date', values = 'duration', aggfunc = 'sum')
+#hejemplo3 = df_calls.pivot_table(index = 'user_id', columns = 'call_date', values = 'duration', aggfunc = 'sum')
 # -------------------------------------------------------------------------------------------------------------------------
 
 
 
 # Calcula el número de llamadas hechas por cada usuario al mes. Guarda el resultado.
-df_calls['year_month'] = df_calls['call_date'].dt.to_period('M')
+df_calls['year_months'] = df_calls['call_date'].dt.to_period('M')
 
-monthly_calls_per_user = df_calls.groupby(['user_id', 'year_month']).size().reset_index(name='call_count')
+monthly_calls_per_user = df_calls.groupby(['user_id', 'year_months']).size().reset_index(name='call_count')
 print(monthly_calls_per_user)
 
 
 # Calcula la cantidad de minutos usados por cada usuario al mes. Guarda el resultado.
 
-monthly_minutes_per_user = df_calls.groupby(['user_id', 'year_month'])['duration'].sum().reset_index()
+monthly_minutes_per_user = df_calls.groupby(['user_id', 'year_months'])['duration_round'].sum().reset_index(name='total_call_minutes')
+print(monthly_calls_per_user)
 print(monthly_minutes_per_user)
 
 
 # Calcula el número de mensajes enviados por cada usuario al mes. Guarda el resultado.
 
-df_messages['year_month'] = df_messages['message_date'].dt.to_period('M')
-monthly_message_per_user = df_messages.groupby(['user_id', 'year_month']).size().reset_index(name='message_count')
+df_messages['year_months'] = df_messages['message_date'].dt.to_period('M')
+monthly_message_per_user = df_messages.groupby(['user_id', 'year_months']).size().reset_index(name='total_message')
 print(monthly_message_per_user)
 
 
 
 # Calcula el volumen del tráfico de Internet usado por cada usuario al mes. Guarda el resultado.
-df_internet['year_month'] = df_internet['session_date'].dt.to_period('M')
+df_internet['year_months'] = df_internet['session_date'].dt.to_period('M')
 
-monthly_mb_per_user = df_internet.groupby(['user_id', 'year_month'])['mb_used'].sum().reset_index()
-print(monthly_mb_per_user)
+monthly_internet_per_user = df_internet.groupby(['user_id', 'year_months'])['mb_used'].sum().reset_index(name='total_internet_mb')
+monthly_internet_per_user['total_internet_gb'] = (monthly_internet_per_user['total_internet_mb'] / 1024).apply(math.ceil)
+print(monthly_internet_per_user)
 
+
+# Fusiona los datos de llamadas, minutos, mensajes e Internet con base en user_id y month
+
+monthly_consumption_per_user = pd.merge(monthly_minutes_per_user, monthly_calls_per_user, on = ['user_id', 'year_months'])
+monthly_consumption_per_user = pd.merge(monthly_message_per_user, monthly_consumption_per_user, on = ['user_id', 'year_months'])
+monthly_consumption_per_user = pd.merge(monthly_internet_per_user, monthly_consumption_per_user, on = ['user_id', 'year_months'])
+print(monthly_consumption_per_user)
+
+# Añade la información de la tarifa
+df_users_plan = df_users[['user_id', 'plan']]
+monthly_consumption_per_user = pd.merge(monthly_consumption_per_user, df_users_plan, on = ['user_id'])
+
+df_plans
+
+
+# Calcula el ingreso mensual para cada usuario
+
+monthly_consumption_per_user['total'] = 0
+
+
+    
